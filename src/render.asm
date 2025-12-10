@@ -67,7 +67,7 @@ render_bricks:
     popa
     ret
 
-; Dessine une brique avec un effet de relief simple
+; Dessine la brique avec un effet de relief
 ; Entrées : CX=X, DX=Y, AL=Couleur principale
 draw_fancy_brick:
     pusha
@@ -81,8 +81,7 @@ draw_fancy_brick:
     mov word [var_h], BRICK_HEIGHT
     call draw_rect_filled
 
-    ; 2. Bordure haute/gauche (plus claire -> blanc/brillant)
-    ; Pour simplifier en 16 couleurs, on utilise blanc (15) ou gris clair (7)
+    ; 2. Bordure haute/gauche
     mov al, 15          ; Blanc
     mov [var_rect_color], al
     
@@ -98,8 +97,7 @@ draw_fancy_brick:
     mov word [var_h], BRICK_HEIGHT
     call draw_rect_filled
 
-    ; 3. Bordure bas/droite (plus sombre -> noir/gris foncé)
-    ; On dessine en bas et à droite
+    ; 3. Bordure bas/droite
     mov al, 8           ; Gris foncé
     mov [var_rect_color], al
 
@@ -107,7 +105,7 @@ draw_fancy_brick:
     mov cx, [var_rect_x]
     mov dx, [var_rect_y]
     add dx, BRICK_HEIGHT
-    sub dx, 2           ; Remonter de 2 pixels
+    sub dx, 2           
     mov word [var_w], BRICK_WIDTH
     mov word [var_h], 2
     call draw_rect_filled
@@ -115,7 +113,7 @@ draw_fancy_brick:
     ; Ligne droite
     mov cx, [var_rect_x]
     add cx, BRICK_WIDTH
-    sub cx, 2           ; Reculer de 2 pixels
+    sub cx, 2           
     mov dx, [var_rect_y]
     mov word [var_w], 2
     mov word [var_h], BRICK_HEIGHT
@@ -124,8 +122,6 @@ draw_fancy_brick:
     popa
     ret
 
-; Dessine un rectangle plein générique
-; Utilise var_rect_x, var_rect_y, var_rect_color, var_w, var_h
 draw_rect_filled:
     pusha
     
