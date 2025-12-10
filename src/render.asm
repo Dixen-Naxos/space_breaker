@@ -31,7 +31,7 @@ render_bricks:
     je .next_col        ; Si 0 (vide), on passe
 
     ; Pos X
-    mov bx, ax          ; Sauvegarder la couleur dans BL (via AX -> BX) temporairement
+    mov bx, ax          ; Sauvegarder la couleur dans BL (via AX -> BX) temp
     mov bl, al          ; BL = couleur
 
     mov ax, BRICK_WIDTH
