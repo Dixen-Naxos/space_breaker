@@ -125,13 +125,13 @@ draw_fancy_brick:
 draw_rect_filled:
     pusha
     
-    xor bx, bx          ; y counter
+    xor bx, bx          ; compteur y
 
 .loop_y:
     cmp bx, [var_h]
     jge .end
     
-    xor si, si          ; x counter
+    xor si, si          ; compteur x
 
 .loop_x:
     cmp si, [var_w]
@@ -157,6 +157,53 @@ draw_rect_filled:
     jmp .loop_y
 
 .end:
+    popa
+    ret
+
+draw_paddle:
+    pusha
+    mov ax, [paddle_x]
+    mov [var_rect_x], ax
+    mov word [var_rect_y], PADDLE_Y
+    mov byte [var_rect_color], PADDLE_COLOR
+    mov word [var_w], PADDLE_WIDTH
+    mov word [var_h], PADDLE_HEIGHT
+    call draw_rect_filled
+    popa
+    ret
+
+clear_paddle:
+    pusha
+    mov ax, [paddle_x]
+    mov [var_rect_x], ax
+    mov word [var_rect_y], PADDLE_Y
+    mov byte [var_rect_color], COLOR_BG
+    mov word [var_w], PADDLE_WIDTH
+    mov word [var_h], PADDLE_HEIGHT
+    call draw_rect_filled
+    popa
+    ret
+
+draw_ui:
+    pusha
+    ; Positionner le curseur en bas à gauche
+    mov ah, 0x02
+    mov bh, 0x00
+    mov dh, 29      ; Ligne 29
+    mov dl, 1       ; Colonne 1
+    int 0x10
+
+    ; Écrire la chaîne
+    mov si, msg_quit
+.print_loop:
+    lodsb
+    or al, al
+    jz .done
+    mov ah, 0x0E
+    mov bl, TEXT_COLOR
+    int 0x10
+    jmp .print_loop
+.done:
     popa
     ret
 

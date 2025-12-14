@@ -10,3 +10,10 @@ BRICK_COLS      equ 10
 
 COLOR_BG        equ 0x00 ; Noir
 
+PADDLE_WIDTH    equ 80
+PADDLE_HEIGHT   equ 10
+PADDLE_Y        equ 450
+PADDLE_SPEED    equ 20
+PADDLE_COLOR    equ 0x09 ; Bleu clair
+
+TEXT_COLOR      equ 0x0F ; Blanc
