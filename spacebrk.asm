@@ -1,6 +1,10 @@
 ; SPACE BREAKER - Architecture MASM + LIBGFX
 ; Compatible avec MASM.EXE / LINK.EXE et LIBGFX.OBJ
 
+.286
+code segment public
+    assume cs:code, ds:donnees, ss:pile
+
 ; =============================================================
 ; Declaration des symboles externes de LIBGFX
 ; =============================================================
@@ -48,6 +52,9 @@ donnees segment public
     PADDLE_COLOR    equ 9      ; Bleu clair
     TEXT_COLOR      equ 15     ; Blanc
     
+    BALL_SIZE       equ 6
+    BALL_COLOR      equ 14     ; Jaune
+    
     ; ============ VARIABLES JEU ============
     brick_map       db 4, 1, 6, 2, 14, 14, 2, 6, 1, 4
                     db 4, 0, 6, 0, 14, 14, 0, 6, 0, 4
@@ -56,6 +63,11 @@ donnees segment public
                     db 4, 1, 6, 2, 14, 14, 2, 6, 1, 4
 
     paddle_x        dw 280
+    
+    ball_x          dw 320
+    ball_y          dw 400
+    ball_vx         dw 4
+    ball_vy         dw -4
     
     ; Variable locale pour calculs
     loc_x           dw 0
@@ -69,9 +81,6 @@ donnees ends
 ; =============================================================
 ; Segment de CODE
 ; =============================================================
-.286
-code segment public
-    assume cs:code, ds:donnees, ss:pile
 
 MAIN PROC
     ; Initialisation du segment de donnees
@@ -85,10 +94,13 @@ MAIN PROC
     call draw_ui
     call render_bricks
     call draw_paddle
+    call draw_ball
 
 game_loop:
     mov tempo, 10 ; Vitesse du jeu
     call sleep
+    
+    call move_ball
 
     call PeekKey
     
@@ -144,6 +156,124 @@ MAIN ENDP
 ; =============================================
 ;                PROCEDURES
 ; =============================================
+
+move_ball PROC
+    pusha
+    
+    ; Effacer ancienne balle
+    call clear_ball
+    
+    ; --- Deplacement X ---
+    mov ax, ball_x
+    add ax, ball_vx
+    mov ball_x, ax
+    
+    ; Collision Mur Gauche
+    cmp ax, 0
+    jle bounce_x
+    
+    ; Collision Mur Droit
+    mov bx, SCREEN_WIDTH
+    sub bx, BALL_SIZE
+    cmp ax, bx
+    jge bounce_x
+    
+    jmp check_y
+    
+bounce_x:
+    neg ball_vx
+    
+    ; --- Deplacement Y ---
+check_y:
+    mov ax, ball_y
+    add ax, ball_vy
+    mov ball_y, ax
+    
+    ; Collision Haut
+    cmp ax, 0
+    jle bounce_y
+    
+    ; Collision Bas (pour l'instant rebondit aussi pour ne pas perdre direct)
+    mov bx, SCREEN_HEIGHT
+    sub bx, BALL_SIZE
+    cmp ax, bx
+    jge bounce_y
+    
+    ; --- Collision Raquette ---
+    ; Si Y >= PADDLE_Y - BALL_SIZE  ET  Y <= PADDLE_Y + PADDLE_HEIGHT
+    ; ET  X >= PADDLE_X  ET  X <= PADDLE_X + PADDLE_WIDTH
+    
+    ; Verif Y
+    mov ax, ball_y
+    mov bx, PADDLE_Y
+    sub bx, BALL_SIZE
+    cmp ax, bx
+    jl end_move_ball
+    
+    mov bx, PADDLE_Y
+    add bx, PADDLE_HEIGHT
+    cmp ax, bx
+    jg end_move_ball
+    
+    ; Verif X
+    mov ax, ball_x
+    add ax, BALL_SIZE ; On teste le cote droit de la balle
+    cmp ax, paddle_x
+    jl end_move_ball
+    
+    mov ax, ball_x
+    mov bx, paddle_x
+    add bx, PADDLE_WIDTH
+    cmp ax, bx
+    jg end_move_ball
+    
+    ; Collision Raquette
+    ; On fait rebondir vers le haut seulement si on vient du haut
+    cmp ball_vy, 0
+    jg bounce_y ; Si vitesse positive (descend), on inverse
+    
+    jmp end_move_ball
+
+bounce_y:
+    neg ball_vy
+    
+end_move_ball:
+    ; Dessiner nouvelle balle
+    call draw_ball
+    
+    popa
+    ret
+move_ball ENDP
+
+draw_ball PROC
+    pusha
+    mov ax, ball_x
+    mov Rx, ax
+    mov ax, ball_y
+    mov Ry, ax
+    mov ax, BALL_SIZE
+    mov Rw, ax
+    mov Rh, ax
+    mov col, BALL_COLOR
+    call fillRect
+    popa
+    ret
+draw_ball ENDP
+
+clear_ball PROC
+    pusha
+    mov ax, ball_x
+    mov Rx, ax
+    mov ax, ball_y
+    mov Ry, ax
+    mov ax, BALL_SIZE
+    mov Rw, ax
+    mov Rh, ax
+    mov col, COLOR_BG
+    call fillRect
+    popa
+    ret
+clear_ball ENDP
 
 render_bricks PROC
     pusha
