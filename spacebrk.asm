@@ -1,6 +1,3 @@
-; SPACE BREAKER - Architecture MASM + LIBGFX
-; Compatible avec MASM.EXE / LINK.EXE et LIBGFX.OBJ
-
 .286
 code segment public
     assume cs:code, ds:donnees, ss:pile
