@@ -3,13 +3,14 @@
 ## Compilation
 
 ```bash
-make
+masm spacebrk.asm
+link spacebrk.obj libgfx.obj
 ```
 
 ## Lancer, a faire dans DosBox
 
 ```dos
-game.com
+spacebrk
 ```
 
 ## TODO
