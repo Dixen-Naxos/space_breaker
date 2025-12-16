@@ -18,7 +18,7 @@ spacebrk
 - [x] Affichage des briques
 - [x] Ajout d'un message pour quitter le jeu
 - [x] Raquette contrôlable
-- [ ] Balle (mouvement + rebonds)
-- [ ] Collisions Balle/Raquette
+- [x] Balle (mouvement + rebonds)
+- [x] Collisions Balle/Raquette
 - [ ] Collisions Balle/Briques
 - [ ] Score et Vies
