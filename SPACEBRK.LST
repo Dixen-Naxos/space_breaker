@@ -1,0 +1,870 @@
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-1
+
+
+       1				.286 
+       2 0000				code segment public 
+       3				    assume cs:code, ds:donnees, ss:pile
+					 
+       4				 
+       5				; =====================================
+					======================== 
+       6				; Declaration des symboles externes de 
+					LIBGFX 
+       7				; =====================================
+					======================== 
+       8				extrn VideoVGA:proc 
+       9				extrn VideoCMD:proc 
+      10				extrn ClearScreen:proc 
+      11				extrn PeekKey:proc 
+      12				extrn sleep:proc 
+      13				extrn fillRect:proc 
+      14				extrn CharLine:proc 
+      15				 
+      16				extrn userinput:byte 
+      17				extrn col:byte 
+      18				extrn Rx:word 
+      19				extrn Ry:word 
+      20				extrn Rw:word 
+      21				extrn Rh:word 
+      22				extrn tempo:word 
+      23				 
+      24				; =====================================
+					======================== 
+      25				; Segment de PILE 
+      26				; =====================================
+					======================== 
+      27 0000				pile segment stack 
+      28 0000  0100[			    dw 100h dup(?) 
+      29	   ????			
+      30			 ]	
+      31				
+      32 0200				pile ends 
+      33				 
+      34				; =====================================
+					======================== 
+      35				; Segment de DONNEES 
+      36				; =====================================
+					======================== 
+      37 0000				donnees segment public 
+      38				    ; ============ CONSTANTES =========
+					=== 
+      39 = 0280				    SCREEN_WIDTH    equ 640 
+      40 = 01E0				    SCREEN_HEIGHT   equ 480 
+      41 = 0032				    BRICK_WIDTH     equ 50 
+      42 = 0014				    BRICK_HEIGHT    equ 20 
+      43 = 0005				    BRICK_PADDING   equ 5 
+      44 = 0005				    BRICK_ROWS      equ 5 
+      45 = 000A				    BRICK_COLS      equ 10 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-2
+
+
+      46				     
+      47 = 0000				    COLOR_BG        equ 0      ; Noir 
+      48 = 0050				    PADDLE_WIDTH    equ 80 
+      49 = 000A				    PADDLE_HEIGHT   equ 10 
+      50 = 01C2				    PADDLE_Y        equ 450 
+      51 = 0014				    PADDLE_SPEED    equ 20 
+      52 = 0009				    PADDLE_COLOR    equ 9      ; Bleu c
+					lair 
+      53 = 000F				    TEXT_COLOR      equ 15     ; Blanc 
+      54				     
+      55 = 0006				    BALL_SIZE       equ 6 
+      56 = 000E				    BALL_COLOR      equ 14     ; Jaune 
+      57				     
+      58				    ; ============ VARIABLES JEU ======
+					====== 
+      59 0000  04 01 06 02 0E 0E 02	    brick_map       db 4, 1, 6, 2, 14, 
+					14, 2, 6, 1, 4 
+      60       06 01 04			
+      61 000A  04 00 06 00 0E 0E 00	                    db 4, 0, 6, 0, 14, 
+					14, 0, 6, 0, 4 
+      62       06 00 04			
+      63 0014  04 01 06 02 0E 0E 02	                    db 4, 1, 6, 2, 14, 
+					14, 2, 6, 1, 4 
+      64       06 01 04			
+      65 001E  00 01 06 00 00 00 00	                    db 0, 1, 6, 0, 0, 0
+					, 0, 6, 1, 0 
+      66       06 01 00			
+      67 0028  04 01 06 02 0E 0E 02	                    db 4, 1, 6, 2, 14, 
+					14, 2, 6, 1, 4 
+      68       06 01 04			
+      69				 
+      70 0032  0118			    paddle_x        dw 280 
+      71				     
+      72 0034  0140			    ball_x          dw 320 
+      73 0036  0190			    ball_y          dw 400 
+      74 0038  0004			    ball_vx         dw 4 
+      75 003A  FFFC			    ball_vy         dw -4 
+      76				     
+      77				    ; Variable locale pour calculs 
+      78 003C  0000			    loc_x           dw 0 
+      79 003E  0000			    loc_y           dw 0 
+      80 0040  00			    loc_col         db 0 
+      81				     
+      82 0041  45 53 43 3A 20 51 75	    msg_quit        db "ESC: Quitter$" 
+					; Termine par $ pour DOS si besoin, mai
+					s on utilise libgfx 
+      83       69 74 74 65 72 24	
+      84				 
+      85 004E				donnees ends 
+      86				 
+      87				; =====================================
+					======================== 
+      88				; Segment de CODE 
+      89				; =====================================
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-3
+
+
+					======================== 
+      90				 
+      91 0000				MAIN PROC 
+      92				    ; Initialisation du segment de donn
+					ees 
+      93 0000  B8 ---- R		    mov ax, donnees 
+      94 0003  8E D8			    mov ds, ax 
+      95				 
+      96				    ; Initialisation Video via LIBGFX (
+					VGA 640x480) 
+      97 0005  E8 0000 E		    call VideoVGA 
+      98				 
+      99				    ; Initialisation jeu 
+     100 0008  E8 0391 R		    call draw_ui 
+     101 000B  E8 0170 R		    call render_bricks 
+     102 000E  E8 0278 R		    call draw_paddle 
+     103 0011  E8 0107 R		    call draw_ball 
+     104				 
+     105 0014				game_loop: 
+     106 0014  2E: C7 06 0000 E 000A	    mov tempo, 10 ; Vitesse du jeu 
+     107 001B  E8 0000 E		    call sleep 
+     108				     
+     109 001E  E8 0086 R		    call move_ball 
+     110 0021  E8 037E R		    call check_brick_collision 
+     111				 
+     112 0024  E8 0000 E		    call PeekKey 
+     113				     
+     114 0027  2E: 80 3E 0000 E 1B	    cmp userinput, 27          ; Echap 
+     115 002D  74 4E			    je exit_game 
+     116				 
+     117 002F  2E: 80 3E 0000 E 71	    cmp userinput, 'q'         ; 'q' (g
+					auche) 
+     118 0035  74 12			    je move_left 
+     119 0037  2E: 80 3E 0000 E 61	    cmp userinput, 'a'         ; 'a' (g
+					auche azerty) 
+     120 003D  74 0A			    je move_left 
+     121				     
+     122 003F  2E: 80 3E 0000 E 64	    cmp userinput, 'd'         ; 'd' (d
+					roite) 
+     123 0045  74 16			    je move_right 
+     124				 
+     125 0047  EB CB			    jmp game_loop 
+     126				 
+     127 0049				move_left: 
+     128 0049  E8 02A0 R		    call clear_paddle 
+     129 004C  A1 0032 R		    mov ax, paddle_x 
+     130 004F  2D 0014			    sub ax, PADDLE_SPEED 
+     131 0052  3D 0000			    cmp ax, 0 
+     132 0055  7D 03			    jge update_paddle_l 
+     133 0057  B8 0000			    mov ax, 0           ; Limite gauche
+					 
+     134 005A				update_paddle_l: 
+     135 005A  EB 19 90			    jmp update_paddle_common 
+     136				 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-4
+
+
+     137 005D				move_right: 
+     138 005D  E8 02A0 R		    call clear_paddle 
+     139 0060  A1 0032 R		    mov ax, paddle_x 
+     140 0063  05 0014			    add ax, PADDLE_SPEED 
+     141 0066  BB 0280			    mov bx, SCREEN_WIDTH 
+     142 0069  83 EB 50			    sub bx, PADDLE_WIDTH 
+     143 006C  3B C3			    cmp ax, bx 
+     144 006E  7E 02			    jle update_paddle_r 
+     145 0070  8B C3			    mov ax, bx          ; Limite droite
+					 
+     146 0072				update_paddle_r: 
+     147 0072  EB 01 90			    jmp update_paddle_common 
+     148				 
+     149 0075				update_paddle_common: 
+     150 0075  A3 0032 R		    mov paddle_x, ax 
+     151 0078  E8 0278 R		    call draw_paddle 
+     152 007B  EB 97			    jmp game_loop 
+     153				 
+     154 007D				exit_game: 
+     155 007D  E8 0000 E		    call VideoCMD 
+     156				 
+     157				    ; Quitter vers le DOS 
+     158 0080  B4 4C			    mov ah, 4Ch 
+     159 0082  32 C0			    xor al, al 
+     160 0084  CD 21			    int 21h 
+     161 0086				MAIN ENDP 
+     162				 
+     163				; =====================================
+					======== 
+     164				;                PROCEDURES 
+     165				; =====================================
+					======== 
+     166				 
+     167 0086				move_ball PROC 
+     168 0086  60			    pusha 
+     169				     
+     170				    ; Effacer ancienne balle 
+     171 0087  E8 014B R		    call clear_ball 
+     172				     
+     173				    ; --- Deplacement X --- 
+     174 008A  A1 0034 R		    mov ax, ball_x 
+     175 008D  03 06 0038 R		    add ax, ball_vx 
+     176 0091  A3 0034 R		    mov ball_x, ax 
+     177				     
+     178				    ; Collision Mur Gauche 
+     179 0094  3D 0000			    cmp ax, 0 
+     180 0097  7E 0D			    jle bounce_x 
+     181				     
+     182				    ; Collision Mur Droit 
+     183 0099  BB 0280			    mov bx, SCREEN_WIDTH 
+     184 009C  83 EB 06			    sub bx, BALL_SIZE 
+     185 009F  3B C3			    cmp ax, bx 
+     186 00A1  7D 03			    jge bounce_x 
+     187				     
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-5
+
+
+     188 00A3  EB 05 90			    jmp check_y 
+     189				     
+     190 00A6				bounce_x: 
+     191 00A6  F7 1E 0038 R		    neg ball_vx 
+     192				     
+     193				    ; --- Deplacement Y --- 
+     194 00AA				check_y: 
+     195 00AA  A1 0036 R		    mov ax, ball_y 
+     196 00AD  03 06 003A R		    add ax, ball_vy 
+     197 00B1  A3 0036 R		    mov ball_y, ax 
+     198				     
+     199				    ; Collision Haut 
+     200 00B4  3D 0000			    cmp ax, 0 
+     201 00B7  7E 45			    jle bounce_y 
+     202				     
+     203				    ; Collision Bas (pour l'instant reb
+					ondit aussi pour ne pas perdre direct) 
+     204 00B9  BB 01E0			    mov bx, SCREEN_HEIGHT 
+     205 00BC  83 EB 06			    sub bx, BALL_SIZE 
+     206 00BF  3B C3			    cmp ax, bx 
+     207 00C1  7D 3B			    jge bounce_y 
+     208				     
+     209				    ; --- Collision Raquette --- 
+     210				    ; Si Y >= PADDLE_Y - BALL_SIZE  ET 
+					 Y <= PADDLE_Y + PADDLE_HEIGHT 
+     211				    ; ET  X >= PADDLE_X  ET  X <= PADDL
+					E_X + PADDLE_WIDTH 
+     212				     
+     213				    ; Verif Y 
+     214 00C3  A1 0036 R		    mov ax, ball_y 
+     215 00C6  BB 01C2			    mov bx, PADDLE_Y 
+     216 00C9  83 EB 06			    sub bx, BALL_SIZE 
+     217 00CC  3B C3			    cmp ax, bx 
+     218 00CE  7C 32			    jl end_move_ball 
+     219				     
+     220 00D0  BB 01C2			    mov bx, PADDLE_Y 
+     221 00D3  83 C3 0A			    add bx, PADDLE_HEIGHT 
+     222 00D6  3B C3			    cmp ax, bx 
+     223 00D8  7F 28			    jg end_move_ball 
+     224				     
+     225				    ; Verif X 
+     226 00DA  A1 0034 R		    mov ax, ball_x 
+     227 00DD  05 0006			    add ax, BALL_SIZE ; On teste le cot
+					e droit de la balle 
+     228 00E0  3B 06 0032 R		    cmp ax, paddle_x 
+     229 00E4  7C 1C			    jl end_move_ball 
+     230				     
+     231 00E6  A1 0034 R		    mov ax, ball_x 
+     232 00E9  8B 1E 0032 R		    mov bx, paddle_x 
+     233 00ED  83 C3 50			    add bx, PADDLE_WIDTH 
+     234 00F0  3B C3			    cmp ax, bx 
+     235 00F2  7F 0E			    jg end_move_ball 
+     236				     
+     237				    ; Collision Raquette 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-6
+
+
+     238				    ; On fait rebondir vers le haut seu
+					lement si on vient du haut 
+     239 00F4  83 3E 003A R 00		    cmp ball_vy, 0 
+     240 00F9  7F 03			    jg bounce_y ; Si vitesse positive (
+					descend), on inverse 
+     241				     
+     242 00FB  EB 05 90			    jmp end_move_ball 
+     243				 
+     244 00FE				bounce_y: 
+     245 00FE  F7 1E 003A R		    neg ball_vy 
+     246				     
+     247 0102				end_move_ball: 
+     248				    ; Dessiner nouvelle balle 
+     249 0102  E8 0107 R		    call draw_ball 
+     250				     
+     251 0105  61			    popa 
+     252 0106  C3			    ret 
+     253 0107				move_ball ENDP 
+     254				 
+     255 0107				draw_ball PROC 
+     256 0107  60			    pusha 
+     257 0108  A1 0034 R		    mov ax, ball_x 
+     258 010B  2E: A3 0000 E		    mov Rx, ax 
+     259 010F  A1 0036 R		    mov ax, ball_y 
+     260 0112  2E: A3 0000 E		    mov Ry, ax 
+     261 0116  B8 0006			    mov ax, BALL_SIZE 
+     262 0119  2E: A3 0000 E		    mov Rw, ax 
+     263 011D  2E: A3 0000 E		    mov Rh, ax 
+     264				 
+     265				    ; --- Check if ball is within brick
+					 area (0-550, 0-125) --- 
+     266 0121  A1 0034 R		    mov ax, ball_x 
+     267 0124  3D 0000			    cmp ax, 0 
+     268 0127  7C 17			    jl not_in_bricks 
+     269 0129  3D 0226			    cmp ax, 550 
+     270 012C  7F 12			    jg not_in_bricks 
+     271				 
+     272 012E  A1 0036 R		    mov ax, ball_y 
+     273 0131  3D 0000			    cmp ax, 0 
+     274 0134  7C 0A			    jl not_in_bricks 
+     275 0136  3D 007D			    cmp ax, 125 
+     276 0139  7F 05			    jg not_in_bricks 
+     277				 
+     278				    ; Ball is inside brick area 
+     279 013B  B0 0C			    mov al, 12      ; red 
+     280 013D  EB 03 90			    jmp set_color 
+     281				 
+     282 0140				not_in_bricks: 
+     283 0140  B0 0E			    mov al, BALL_COLOR 
+     284				 
+     285 0142				set_color: 
+     286 0142  2E: A2 0000 E		    mov col, al 
+     287 0146  E8 0000 E		    call fillRect 
+     288 0149  61			    popa 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-7
+
+
+     289 014A  C3			    ret 
+     290 014B				draw_ball ENDP 
+     291				 
+     292				 
+     293				 
+     294				 
+     295 014B				clear_ball PROC 
+     296 014B  60			    pusha 
+     297 014C  A1 0034 R		    mov ax, ball_x 
+     298 014F  2E: A3 0000 E		    mov Rx, ax 
+     299 0153  A1 0036 R		    mov ax, ball_y 
+     300 0156  2E: A3 0000 E		    mov Ry, ax 
+     301 015A  B8 0006			    mov ax, BALL_SIZE 
+     302 015D  2E: A3 0000 E		    mov Rw, ax 
+     303 0161  2E: A3 0000 E		    mov Rh, ax 
+     304 0165  2E: C6 06 0000 E 00	    mov col, COLOR_BG 
+     305 016B  E8 0000 E		    call fillRect 
+     306 016E  61			    popa 
+     307 016F  C3			    ret 
+     308 0170				clear_ball ENDP 
+     309				 
+     310 0170				render_bricks PROC 
+     311 0170  60			    pusha 
+     312				 
+     313 0171  BB 0000 R		    mov bx, offset brick_map 
+     314 0174  33 FF			    xor di, di          ; ligne (di) 
+     315				 
+     316 0176				loop_rows: 
+     317 0176  83 FF 05			    cmp di, BRICK_ROWS 
+     318 0179  7D 4C			    jge end_render 
+     319				 
+     320 017B  33 F6			    xor si, si          ; colonne (si) 
+     321				 
+     322 017D				loop_cols: 
+     323 017D  83 FE 0A			    cmp si, BRICK_COLS 
+     324 0180  7D 42			    jge next_row 
+     325				 
+     326				    ; Index = ligne * cols + col 
+     327 0182  8B C7			    mov ax, di 
+     328 0184  B9 000A			    mov cx, BRICK_COLS 
+     329 0187  F7 E1			    mul cx 
+     330 0189  03 C6			    add ax, si 
+     331				 
+     332				    ; Verif brique a l'adresse brick_ma
+					p + index 
+     333 018B  53			    push bx 
+     334 018C  BB 0000 R		    mov bx, offset brick_map 
+     335 018F  03 D8			    add bx, ax 
+     336 0191  8A 07			    mov al, [bx]        ; AL = Couleur 
+					de la brique (0 = vide) 
+     337 0193  5B			    pop bx 
+     338				 
+     339 0194  3C 00			    cmp al, 0 
+     340 0196  74 29			    je next_col        ; Si 0 (vide), o
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-8
+
+
+					n passe 
+     341				 
+     342				    ; Calcul Pos X -> loc_x 
+     343 0198  50			    push ax             ; Sauvegarde in
+					dex 
+     344 0199  B8 0032			    mov ax, BRICK_WIDTH 
+     345 019C  05 0005			    add ax, BRICK_PADDING 
+     346 019F  F7 E6			    mul si 
+     347 01A1  A3 003C R		    mov loc_x, ax 
+     348 01A4  58			    pop ax 
+     349				 
+     350				    ; Calcul Pos Y -> loc_y 
+     351 01A5  50			    push ax             ; Sauvegarde in
+					dex 
+     352 01A6  B8 0014			    mov ax, BRICK_HEIGHT 
+     353 01A9  05 0005			    add ax, BRICK_PADDING 
+     354 01AC  F7 E7			    mul di 
+     355 01AE  A3 003E R		    mov loc_y, ax  
+     356 01B1  58			    pop ax 
+     357				 
+     358				    ; Recuperer la couleur 
+     359 01B2  53			    push bx 
+     360 01B3  BB 0000 R		    mov bx, offset brick_map 
+     361 01B6  03 D8			    add bx, ax 
+     362 01B8  8A 07			    mov al, [bx] 
+     363 01BA  A2 0040 R		    mov loc_col, al 
+     364 01BD  5B			    pop bx 
+     365				 
+     366				    ; Dessiner la brique 
+     367 01BE  E8 01C9 R		    call draw_fancy_brick 
+     368				 
+     369 01C1				next_col: 
+     370 01C1  46			    inc si 
+     371 01C2  EB B9			    jmp loop_cols 
+     372				 
+     373 01C4				next_row: 
+     374 01C4  47			    inc di 
+     375 01C5  EB AF			    jmp loop_rows 
+     376				 
+     377 01C7				end_render: 
+     378 01C7  61			    popa 
+     379 01C8  C3			    ret 
+     380 01C9				render_bricks ENDP 
+     381				 
+     382 01C9				draw_fancy_brick PROC 
+     383				    ; Utilise loc_x, loc_y, loc_col 
+     384 01C9  60			    pusha 
+     385				 
+     386				    ; 1. Corps principal 
+     387 01CA  A1 003C R		    mov ax, loc_x 
+     388 01CD  2E: A3 0000 E		    mov Rx, ax 
+     389 01D1  A1 003E R		    mov ax, loc_y 
+     390 01D4  2E: A3 0000 E		    mov Ry, ax 
+     391 01D8  B8 0032			    mov ax, BRICK_WIDTH 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-9
+
+
+     392 01DB  2E: A3 0000 E		    mov Rw, ax 
+     393 01DF  B8 0014			    mov ax, BRICK_HEIGHT 
+     394 01E2  2E: A3 0000 E		    mov Rh, ax 
+     395 01E6  A0 0040 R		    mov al, loc_col 
+     396 01E9  2E: A2 0000 E		    mov col, al 
+     397 01ED  E8 0000 E		    call fillRect 
+     398				 
+     399				    ; 2. Bordure haute/gauche (Blanc 15
+					) 
+     400 01F0  2E: C6 06 0000 E 0F	    mov col, 15 
+     401				 
+     402				    ; Ligne haut 
+     403 01F6  B8 0032			    mov ax, BRICK_WIDTH 
+     404 01F9  2E: A3 0000 E		    mov Rw, ax 
+     405 01FD  2E: C7 06 0000 E 0002	    mov Rh, 2 
+     406 0204  E8 0000 E		    call fillRect 
+     407				 
+     408				    ; Ligne gauche 
+     409 0207  A1 003C R		    mov ax, loc_x 
+     410 020A  2E: A3 0000 E		    mov Rx, ax 
+     411 020E  A1 003E R		    mov ax, loc_y 
+     412 0211  2E: A3 0000 E		    mov Ry, ax 
+     413 0215  2E: C7 06 0000 E 0002	    mov Rw, 2 
+     414 021C  B8 0014			    mov ax, BRICK_HEIGHT 
+     415 021F  2E: A3 0000 E		    mov Rh, ax 
+     416 0223  E8 0000 E		    call fillRect 
+     417				 
+     418				    ; 3. Bordure bas/droite (Gris fonce
+					 8) 
+     419 0226  2E: C6 06 0000 E 08	    mov col, 8 
+     420				 
+     421				    ; Ligne bas 
+     422 022C  A1 003C R		    mov ax, loc_x 
+     423 022F  2E: A3 0000 E		    mov Rx, ax 
+     424 0233  A1 003E R		    mov ax, loc_y 
+     425 0236  05 0014			    add ax, BRICK_HEIGHT 
+     426 0239  2D 0002			    sub ax, 2 
+     427 023C  2E: A3 0000 E		    mov Ry, ax 
+     428 0240  B8 0032			    mov ax, BRICK_WIDTH 
+     429 0243  2E: A3 0000 E		    mov Rw, ax 
+     430 0247  2E: C7 06 0000 E 0002	    mov Rh, 2 
+     431 024E  E8 0000 E		    call fillRect 
+     432				 
+     433				    ; Ligne droite 
+     434 0251  A1 003C R		    mov ax, loc_x 
+     435 0254  05 0032			    add ax, BRICK_WIDTH 
+     436 0257  2D 0002			    sub ax, 2 
+     437 025A  2E: A3 0000 E		    mov Rx, ax 
+     438 025E  A1 003E R		    mov ax, loc_y 
+     439 0261  2E: A3 0000 E		    mov Ry, ax 
+     440 0265  2E: C7 06 0000 E 0002	    mov Rw, 2 
+     441 026C  B8 0014			    mov ax, BRICK_HEIGHT 
+     442 026F  2E: A3 0000 E		    mov Rh, ax 
+     443 0273  E8 0000 E		    call fillRect 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-10
+
+
+     444				 
+     445 0276  61			    popa 
+     446 0277  C3			    ret 
+     447 0278				draw_fancy_brick ENDP 
+     448				 
+     449 0278				draw_paddle PROC 
+     450 0278  60			    pusha 
+     451 0279  A1 0032 R		    mov ax, paddle_x 
+     452 027C  2E: A3 0000 E		    mov Rx, ax 
+     453 0280  2E: C7 06 0000 E 01C2	    mov Ry, PADDLE_Y 
+     454 0287  B0 09			    mov al, PADDLE_COLOR 
+     455 0289  2E: A2 0000 E		    mov col, al 
+     456 028D  2E: C7 06 0000 E 0050	    mov Rw, PADDLE_WIDTH 
+     457 0294  2E: C7 06 0000 E 000A	    mov Rh, PADDLE_HEIGHT 
+     458 029B  E8 0000 E		    call fillRect 
+     459 029E  61			    popa 
+     460 029F  C3			    ret 
+     461 02A0				draw_paddle ENDP 
+     462				 
+     463 02A0				clear_paddle PROC 
+     464 02A0  60			    pusha 
+     465 02A1  A1 0032 R		    mov ax, paddle_x 
+     466 02A4  2E: A3 0000 E		    mov Rx, ax 
+     467 02A8  2E: C7 06 0000 E 01C2	    mov Ry, PADDLE_Y 
+     468 02AF  B0 00			    mov al, COLOR_BG 
+     469 02B1  2E: A2 0000 E		    mov col, al 
+     470 02B5  2E: C7 06 0000 E 0050	    mov Rw, PADDLE_WIDTH 
+     471 02BC  2E: C7 06 0000 E 000A	    mov Rh, PADDLE_HEIGHT 
+     472 02C3  E8 0000 E		    call fillRect 
+     473 02C6  61			    popa 
+     474 02C7  C3			    ret 
+     475 02C8				clear_paddle ENDP 
+     476				 
+     477				; Inputs: DI = row, SI = column 
+     478				; Output: AL = brick color 
+     479 02C8				brick_get_color PROC 
+     480 02C8  60			    pusha 
+     481 02C9  8B C7			    mov ax, di 
+     482 02CB  BB 000A			    mov bx, BRICK_COLS 
+     483 02CE  F7 E3			    mul bx 
+     484 02D0  03 C6			    add ax, si 
+     485 02D2  BB 0000 R		    mov bx, offset brick_map 
+     486 02D5  03 D8			    add bx, ax 
+     487 02D7  8A 07			    mov al, [bx] 
+     488 02D9  61			    popa 
+     489 02DA  C3			    ret 
+     490 02DB				brick_get_color ENDP 
+     491				 
+     492				; Inputs: DI = row, SI = column 
+     493				; Outputs: DX = brick X, CX = brick Y 
+     494 02DB				brick_get_rect PROC 
+     495 02DB  60			    pusha 
+     496				    ; Brick X 
+     497 02DC  8B C6			    mov ax, si 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-11
+
+
+     498 02DE  BB 0032			    mov bx, BRICK_WIDTH 
+     499 02E1  83 C3 05			    add bx, BRICK_PADDING 
+     500 02E4  F7 E3			    mul bx 
+     501 02E6  8B D0			    mov dx, ax 
+     502				 
+     503				    ; Brick Y 
+     504 02E8  8B C7			    mov ax, di 
+     505 02EA  BB 0014			    mov bx, BRICK_HEIGHT 
+     506 02ED  83 C3 05			    add bx, BRICK_PADDING 
+     507 02F0  F7 E3			    mul bx 
+     508 02F2  8B C8			    mov cx, ax 
+     509				 
+     510 02F4  61			    popa 
+     511 02F5  C3			    ret 
+     512 02F6				brick_get_rect ENDP 
+     513				 
+     514				; Inputs: DX = brick X, CX = brick Y, A
+					L = brick color 
+     515				; Ball globals: ball_x, ball_y, BALL_SI
+					ZE 
+     516				; Modifies: ball_vy, brick_map, fills r
+					ectangle 
+     517 02F6				brick_check_overlap PROC 
+     518 02F6  60			    pusha 
+     519 02F7  84 C0			    test al, al 
+     520 02F9  74 62			    jz short skip_brick   ; brick empty
+					 
+     521				 
+     522				    ; Ball right > brick left? 
+     523 02FB  A1 0034 R		    mov ax, ball_x 
+     524 02FE  05 0006			    add ax, BALL_SIZE 
+     525 0301  3B C2			    cmp ax, dx 
+     526 0303  7C 58			    jl short skip_brick 
+     527				    ; Ball left < brick right? 
+     528 0305  A1 0034 R		    mov ax, ball_x 
+     529 0308  8B DA			    mov bx, dx 
+     530 030A  83 C3 32			    add bx, BRICK_WIDTH 
+     531 030D  3B C3			    cmp ax, bx 
+     532 030F  7D 4C			    jge short skip_brick 
+     533				    ; Ball bottom > brick top? 
+     534 0311  A1 0036 R		    mov ax, ball_y 
+     535 0314  05 0006			    add ax, BALL_SIZE 
+     536 0317  3B C1			    cmp ax, cx 
+     537 0319  7C 42			    jl short skip_brick 
+     538				    ; Ball top < brick bottom? 
+     539 031B  A1 0036 R		    mov ax, ball_y 
+     540 031E  8B D9			    mov bx, cx 
+     541 0320  83 C3 14			    add bx, BRICK_HEIGHT 
+     542 0323  3B C3			    cmp ax, bx 
+     543 0325  7D 36			    jge short skip_brick 
+     544				 
+     545				    ; --- Collision detected --- 
+     546				    ; Clear brick in brick_map 
+     547 0327  BB 0000 R		    mov bx, offset brick_map 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-12
+
+
+     548 032A  8B C7			    mov ax, di 
+     549 032C  BA 000A			    mov dx, BRICK_COLS 
+     550 032F  F7 E2			    mul dx 
+     551 0331  03 C6			    add ax, si 
+     552 0333  03 D8			    add bx, ax 
+     553 0335  C6 07 00			    mov byte ptr [bx], 0 
+     554				 
+     555				    ; Clear brick visually 
+     556 0338  2E: 89 16 0000 E		    mov Rx, dx 
+     557 033D  2E: 89 0E 0000 E		    mov Ry, cx 
+     558 0342  2E: C7 06 0000 E 0032	    mov Rw, BRICK_WIDTH 
+     559 0349  2E: C7 06 0000 E 0014	    mov Rh, BRICK_HEIGHT 
+     560 0350  2E: C6 06 0000 E 00	    mov col, COLOR_BG 
+     561 0356  E8 0000 E		    call fillRect 
+     562				 
+     563				    ; Bounce ball vertically 
+     564 0359  F7 1E 003A R		    neg ball_vy 
+     565				 
+     566 035D				skip_brick: 
+     567 035D  61			    popa 
+     568 035E  C3			    ret 
+     569 035F				brick_check_overlap ENDP 
+     570				 
+     571				 
+     572				; Inputs: DI = current row 
+     573 035F				check_collision_col PROC 
+     574 035F  60			    pusha 
+     575 0360  BE 0000			    mov si, 0 
+     576 0363				col_loop: 
+     577 0363  83 FE 0A			    cmp si, BRICK_COLS 
+     578 0366  7D 14			    jge short col_done 
+     579				 
+     580 0368  8B F8			    mov di, ax           ; pass row in 
+					AX 
+     581 036A  56			    push si 
+     582 036B  E8 02C8 R		    call brick_get_color ; AL = color 
+     583 036E  5E			    pop si 
+     584 036F  56			    push si 
+     585 0370  E8 02DB R		    call brick_get_rect  ; DX = X, CX =
+					 Y 
+     586 0373  5E			    pop si 
+     587 0374  56			    push si 
+     588 0375  E8 02F6 R		    call brick_check_overlap 
+     589 0378  5E			    pop si 
+     590				 
+     591 0379  46			    inc si 
+     592 037A  EB E7			    jmp short col_loop 
+     593 037C				col_done: 
+     594 037C  61			    popa 
+     595 037D  C3			    ret 
+     596 037E				check_collision_col ENDP 
+     597				 
+     598				 
+     599 037E				check_brick_collision PROC 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Page     1-13
+
+
+     600 037E  60			    pusha 
+     601 037F  BF 0000			    mov di, 0 
+     602				 
+     603 0382				row_loop: 
+     604 0382  83 FF 05			    cmp di, BRICK_ROWS 
+     605 0385  7D 08			    jge short done_collision 
+     606				 
+     607 0387  8B C7			    mov ax, di    ; pass current row in
+					 AX to column procedure 
+     608 0389  E8 035F R		    call check_collision_col 
+     609				 
+     610 038C  47			    inc di 
+     611 038D  EB F3			    jmp short row_loop 
+     612				 
+     613 038F				done_collision: 
+     614 038F  61			    popa 
+     615 0390  C3			    ret 
+     616 0391				check_brick_collision ENDP 
+     617				 
+     618				 
+     619 0391				draw_ui PROC 
+     620 0391  60			    pusha 
+     621				    ; Positionner le curseur en bas a g
+					auche 
+     622 0392  B4 02			    mov ah, 02h 
+     623 0394  B7 00			    mov bh, 00h 
+     624 0396  B6 1D			    mov dh, 29      ; Ligne 29 
+     625 0398  B2 01			    mov dl, 1       ; Colonne 1 
+     626 039A  CD 10			    int 10h 
+     627				 
+     628				    ; On utilise l'interruption DOS dir
+					ecte pour la string car CharLine de lib
+					gfx fait un saut de ligne 
+     629 039C  BA 0041 R		    mov dx, offset msg_quit 
+     630 039F  B4 09			    mov ah, 09h 
+     631 03A1  CD 21			    int 21h 
+     632				 
+     633 03A3  61			    popa 
+     634 03A4  C3			    ret 
+     635 03A5				draw_ui ENDP 
+     636				 
+     637 03A5				code ends 
+     638				END MAIN 
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Symbols-1
+
+
+Segments and Groups:
+
+                N a m e         	Length	 Align	Combine Class
+
+CODE . . . . . . . . . . . . . .  	03A5	PARA	PUBLIC	
+DONNEES  . . . . . . . . . . . .  	004E	PARA	PUBLIC	
+PILE . . . . . . . . . . . . . .  	0200	PARA	STACK	
+
+Symbols:            
+
+                N a m e         	Type	 Value	 Attr
+
+BALL_COLOR . . . . . . . . . . .  	NUMBER	000E	
+BALL_SIZE  . . . . . . . . . . .  	NUMBER	0006	
+BALL_VX  . . . . . . . . . . . .  	L WORD	0038	DONNEES
+BALL_VY  . . . . . . . . . . . .  	L WORD	003A	DONNEES
+BALL_X . . . . . . . . . . . . .  	L WORD	0034	DONNEES
+BALL_Y . . . . . . . . . . . . .  	L WORD	0036	DONNEES
+BOUNCE_X . . . . . . . . . . . .  	L NEAR	00A6	CODE
+BOUNCE_Y . . . . . . . . . . . .  	L NEAR	00FE	CODE
+BRICK_CHECK_OVERLAP  . . . . . .  	N PROC	02F6	CODE	Length = 0069
+BRICK_COLS . . . . . . . . . . .  	NUMBER	000A	
+BRICK_GET_COLOR  . . . . . . . .  	N PROC	02C8	CODE	Length = 0013
+BRICK_GET_RECT . . . . . . . . .  	N PROC	02DB	CODE	Length = 001B
+BRICK_HEIGHT . . . . . . . . . .  	NUMBER	0014	
+BRICK_MAP  . . . . . . . . . . .  	L BYTE	0000	DONNEES
+BRICK_PADDING  . . . . . . . . .  	NUMBER	0005	
+BRICK_ROWS . . . . . . . . . . .  	NUMBER	0005	
+BRICK_WIDTH  . . . . . . . . . .  	NUMBER	0032	
+
+CHARLINE . . . . . . . . . . . .  	L NEAR	0000	CODE	External
+CHECK_BRICK_COLLISION  . . . . .  	N PROC	037E	CODE	Length = 0013
+CHECK_COLLISION_COL  . . . . . .  	N PROC	035F	CODE	Length = 001F
+CHECK_Y  . . . . . . . . . . . .  	L NEAR	00AA	CODE
+CLEARSCREEN  . . . . . . . . . .  	L NEAR	0000	CODE	External
+CLEAR_BALL . . . . . . . . . . .  	N PROC	014B	CODE	Length = 0025
+CLEAR_PADDLE . . . . . . . . . .  	N PROC	02A0	CODE	Length = 0028
+COL  . . . . . . . . . . . . . .  	V BYTE	0000	CODE	External
+COLOR_BG . . . . . . . . . . . .  	NUMBER	0000	
+COL_DONE . . . . . . . . . . . .  	L NEAR	037C	CODE
+COL_LOOP . . . . . . . . . . . .  	L NEAR	0363	CODE
+
+DONE_COLLISION . . . . . . . . .  	L NEAR	038F	CODE
+DRAW_BALL  . . . . . . . . . . .  	N PROC	0107	CODE	Length = 0044
+DRAW_FANCY_BRICK . . . . . . . .  	N PROC	01C9	CODE	Length = 00AF
+DRAW_PADDLE  . . . . . . . . . .  	N PROC	0278	CODE	Length = 0028
+DRAW_UI  . . . . . . . . . . . .  	N PROC	0391	CODE	Length = 0014
+
+END_MOVE_BALL  . . . . . . . . .  	L NEAR	0102	CODE
+END_RENDER . . . . . . . . . . .  	L NEAR	01C7	CODE
+EXIT_GAME  . . . . . . . . . . .  	L NEAR	007D	CODE
+
+FILLRECT . . . . . . . . . . . .  	L NEAR	0000	CODE	External
+
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Symbols-2
+
+
+GAME_LOOP  . . . . . . . . . . .  	L NEAR	0014	CODE
+
+LOC_COL  . . . . . . . . . . . .  	L BYTE	0040	DONNEES
+LOC_X  . . . . . . . . . . . . .  	L WORD	003C	DONNEES
+LOC_Y  . . . . . . . . . . . . .  	L WORD	003E	DONNEES
+LOOP_COLS  . . . . . . . . . . .  	L NEAR	017D	CODE
+LOOP_ROWS  . . . . . . . . . . .  	L NEAR	0176	CODE
+
+MAIN . . . . . . . . . . . . . .  	N PROC	0000	CODE	Length = 0086
+MOVE_BALL  . . . . . . . . . . .  	N PROC	0086	CODE	Length = 0081
+MOVE_LEFT  . . . . . . . . . . .  	L NEAR	0049	CODE
+MOVE_RIGHT . . . . . . . . . . .  	L NEAR	005D	CODE
+MSG_QUIT . . . . . . . . . . . .  	L BYTE	0041	DONNEES
+
+NEXT_COL . . . . . . . . . . . .  	L NEAR	01C1	CODE
+NEXT_ROW . . . . . . . . . . . .  	L NEAR	01C4	CODE
+NOT_IN_BRICKS  . . . . . . . . .  	L NEAR	0140	CODE
+
+PADDLE_COLOR . . . . . . . . . .  	NUMBER	0009	
+PADDLE_HEIGHT  . . . . . . . . .  	NUMBER	000A	
+PADDLE_SPEED . . . . . . . . . .  	NUMBER	0014	
+PADDLE_WIDTH . . . . . . . . . .  	NUMBER	0050	
+PADDLE_X . . . . . . . . . . . .  	L WORD	0032	DONNEES
+PADDLE_Y . . . . . . . . . . . .  	NUMBER	01C2	
+PEEKKEY  . . . . . . . . . . . .  	L NEAR	0000	CODE	External
+
+RENDER_BRICKS  . . . . . . . . .  	N PROC	0170	CODE	Length = 0059
+RH . . . . . . . . . . . . . . .  	V WORD	0000	CODE	External
+ROW_LOOP . . . . . . . . . . . .  	L NEAR	0382	CODE
+RW . . . . . . . . . . . . . . .  	V WORD	0000	CODE	External
+RX . . . . . . . . . . . . . . .  	V WORD	0000	CODE	External
+RY . . . . . . . . . . . . . . .  	V WORD	0000	CODE	External
+
+SCREEN_HEIGHT  . . . . . . . . .  	NUMBER	01E0	
+SCREEN_WIDTH . . . . . . . . . .  	NUMBER	0280	
+SET_COLOR  . . . . . . . . . . .  	L NEAR	0142	CODE
+SKIP_BRICK . . . . . . . . . . .  	L NEAR	035D	CODE
+SLEEP  . . . . . . . . . . . . .  	L NEAR	0000	CODE	External
+
+TEMPO  . . . . . . . . . . . . .  	V WORD	0000	CODE	External
+TEXT_COLOR . . . . . . . . . . .  	NUMBER	000F	
+
+UPDATE_PADDLE_COMMON . . . . . .  	L NEAR	0075	CODE
+UPDATE_PADDLE_L  . . . . . . . .  	L NEAR	005A	CODE
+UPDATE_PADDLE_R  . . . . . . . .  	L NEAR	0072	CODE
+USERINPUT  . . . . . . . . . . .  	V BYTE	0000	CODE	External
+
+VIDEOCMD . . . . . . . . . . . .  	L NEAR	0000	CODE	External
+VIDEOVGA . . . . . . . . . . . .  	L NEAR	0000	CODE	External
+
+@FILENAME  . . . . . . . . . . .  	TEXT  SPACEBRK		
+
+Microsoft (R) Macro Assembler Version 5.00                  12/16/25 24:49:25
+                                                             Symbols-3
+
+
+
+    629 Source  Lines
+    629 Total   Lines
+     82 Symbols
+
+  50520 + 449640 Bytes symbol space free
+
+      0 Warning Errors
+      0 Severe  Errors

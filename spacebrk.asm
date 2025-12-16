@@ -98,6 +98,7 @@ game_loop:
     call sleep
     
     call move_ball
+    call check_brick_collision
 
     call PeekKey
     
@@ -251,7 +252,29 @@ draw_ball PROC
     mov ax, BALL_SIZE
     mov Rw, ax
     mov Rh, ax
-    mov col, BALL_COLOR
+
+    ; --- Check if ball is within brick area (0-550, 0-125) ---
+    mov ax, ball_x
+    cmp ax, 0
+    jl not_in_bricks
+    cmp ax, 550
+    jg not_in_bricks
+
+    mov ax, ball_y
+    cmp ax, 0
+    jl not_in_bricks
+    cmp ax, 125
+    jg not_in_bricks
+
+    ; Ball is inside brick area
+    mov al, 12      ; red
+    jmp set_color
+
+not_in_bricks:
+    mov al, BALL_COLOR
+
+set_color:
+    mov col, al
     call fillRect
     popa
     ret
