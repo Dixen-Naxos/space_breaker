@@ -91,6 +91,11 @@ donnees segment public
     END_X       equ 160
     PIX         equ 8      ; taille d’un “pixel”
 
+    score_str       db "0000$",0
+    score           dw 0
+    score_x         dw 500
+    score_y         dw 30
+
 
     
     msg_quit        db "ESC: Quitter$" ; Termine par $ pour DOS si besoin, mais on utilise libgfx
@@ -393,10 +398,6 @@ wait_exit:
     int 21h
 game_over_red ENDP
 
-
-
-
-
 ; =============================================================
 ; Check collision with a single brick (specific coordinates)
 ; Inputs: loc_x = brick X, loc_y = brick Y
@@ -474,6 +475,9 @@ check_brick_bounce PROC
     mov bx, offset brick_map
     add bx, ax
     mov byte ptr [bx], 0  ; set brick to 0 (destroy)
+    add score, 10
+    ; Breaks collision with paddle but works
+    ;call draw_score
 
     ; ---------------------------
     ; Clear brick from screen
@@ -804,6 +808,65 @@ clear_paddle PROC
     popa
     ret
 clear_paddle ENDP
+
+num_to_str PROC
+    pusha
+    mov ax, score          ; get score
+    mov si, offset score_str + 3 ; start filling from rightmost digit
+    mov cx, 4              ; 4-digit display
+
+convert_loop:
+    xor dx, dx
+    mov bx, 10
+    div bx                  ; AX / 10 -> AX=quotient, DX=remainder
+    add dl, '0'
+    mov [si], dl
+    dec si
+    loop convert_loop
+
+    ; Fill remaining leading zeros
+    mov di, offset score_str
+    mov cx, 4
+fill_zeros:
+    cmp byte ptr [di], 0
+    jne skip_zero
+    mov byte ptr [di], '0'
+skip_zero:
+    inc di
+    loop fill_zeros
+
+    popa
+    ret
+num_to_str ENDP
+
+draw_score PROC
+    pusha
+    ; Clear old score area
+    mov ax, score_x
+    mov Rx, ax
+    mov ax, score_y
+    mov Ry, ax
+    mov Rw, 60
+    mov Rh, 10
+    mov col, COLOR_BG
+    call fillRect
+
+    ; Convert number to string
+    call num_to_str
+    mov ah, 02h
+    mov bh, 0
+    mov dh, 30
+    mov dl, 50
+    int 10h
+    ; Display the score
+    mov dx, offset score_str
+    call CharLine
+
+    popa
+    ret
+draw_score ENDP
+
+
 
 draw_ui PROC
     pusha
