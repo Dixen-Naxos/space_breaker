@@ -98,7 +98,7 @@ donnees segment public
 
 
     
-    msg_quit        db "ESC: Quitter, A pour aller a gauche et D pour aller a droite$" ; Termine par $ pour DOS si besoin, mais on utilise libgfx
+    msg_quit        db "ESC: Quitter, A ou Q pour aller a gauche et D pour aller a droite$" ; Termine par $ pour DOS si besoin, mais on utilise libgfx
 
 donnees ends
 
