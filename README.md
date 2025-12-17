@@ -20,5 +20,5 @@ spacebrk
 - [x] Raquette contrôlable
 - [x] Balle (mouvement + rebonds)
 - [x] Collisions Balle/Raquette
-- [ ] Collisions Balle/Briques
+- [x] Collisions Balle/Briques
 - [ ] Score et Vies
