@@ -888,6 +888,8 @@ draw_ui ENDP
 
 draw_E PROC
     pusha
+    mov si, Rx      ; Sauvegarde X de base
+    mov di, Ry      ; Sauvegarde Y de base
     mov col, END_COLOR
 
     ; Barre verticale
@@ -896,18 +898,26 @@ draw_E PROC
     call fillRect
 
     ; Haut
+    mov Rx, si
+    mov Ry, di
     mov Rw, PIX*3
     mov Rh, PIX
     call fillRect
 
     ; Milieu
-    mov Ry, END_Y
+    mov Rx, si
+    mov Ry, di
     add Ry, PIX*2
+    mov Rw, PIX*3
+    mov Rh, PIX
     call fillRect
 
     ; Bas
-    mov Ry, END_Y
+    mov Rx, si
+    mov Ry, di
     add Ry, PIX*4
+    mov Rw, PIX*3
+    mov Rh, PIX
     call fillRect
 
     popa
@@ -916,42 +926,50 @@ draw_E ENDP
 
 draw_N PROC
     pusha
+    mov si, Rx      ; Sauvegarde X de base
+    mov di, Ry      ; Sauvegarde Y de base
     mov col, END_COLOR
 
     ; --- Barre gauche ---
-    mov Rx, END_X
-    mov Ry, END_Y
+    mov Rx, si
+    mov Ry, di
     mov Rw, PIX
     mov Rh, PIX*5
     call fillRect
 
-    ; --- Diagonale ---
+    ; --- Diagonale (0,0) a (4,4) ---
     mov cx, 5
 diag_loop_n:
-    ; Rx = END_X + cx * PIX
+    push cx         ; Sauvegarde CX car fillRect peut le modifier
+    
+    ; Calcul offset (4..0)
     mov ax, cx
+    dec ax          ; 4, 3, 2, 1, 0
+    
     mov bx, PIX
-    mul bx
-    add ax, END_X
-    mov Rx, ax
-
-    ; Ry = END_Y + cx * PIX
-    mov ax, cx
-    mov bx, PIX
-    mul bx
-    add ax, END_Y
-    mov Ry, ax
+    mul bx          ; ax = offset pixels
+    
+    mov bx, si
+    add bx, ax
+    mov Rx, bx      ; Rx = BaseX + offset
+    
+    mov bx, di
+    add bx, ax
+    mov Ry, bx      ; Ry = BaseY + offset
 
     mov Rw, PIX
     mov Rh, PIX
     call fillRect
+    
+    pop cx          ; Restauration CX pour la boucle
 
     loop diag_loop_n
 
     ; --- Barre droite ---
-    mov Rx, END_X
-    add Rx, PIX*4
-    mov Ry, END_Y
+    mov ax, si
+    add ax, PIX*4
+    mov Rx, ax
+    mov Ry, di
     mov Rw, PIX
     mov Rh, PIX*5
     call fillRect
@@ -963,27 +981,37 @@ draw_N ENDP
 
 draw_D PROC
     pusha
+    mov si, Rx      ; Sauvegarde X de base
+    mov di, Ry      ; Sauvegarde Y de base
     mov col, END_COLOR
 
     ; Gauche
+    mov Rx, si
+    mov Ry, di
     mov Rw, PIX
     mov Rh, PIX*5
     call fillRect
 
     ; Haut
+    mov Rx, si
+    mov Ry, di
     mov Rw, PIX*3
     mov Rh, PIX
     call fillRect
 
     ; Bas
-    mov Ry, END_Y
+    mov Rx, si
+    mov Ry, di
     add Ry, PIX*4
+    mov Rw, PIX*3
+    mov Rh, PIX
     call fillRect
 
     ; Droite
-    mov Rx, END_X
-    add Rx, PIX*3
-    mov Ry, END_Y
+    mov ax, si
+    add ax, PIX*3
+    mov Rx, ax
+    mov Ry, di
     mov Rw, PIX
     mov Rh, PIX*5
     call fillRect
