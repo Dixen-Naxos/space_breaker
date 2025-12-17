@@ -98,8 +98,6 @@ game_loop:
     call sleep
     
     call move_ball
-    call check_brick_collision
-
     call PeekKey
     
     cmp userinput, 27          ; Echap
@@ -155,90 +153,157 @@ MAIN ENDP
 ;                PROCEDURES
 ; =============================================
 
-move_ball PROC
+check_screen_edges PROC
     pusha
-    
-    ; Effacer ancienne balle
-    call clear_ball
-    
-    ; --- Deplacement X ---
+
+    ; Predict next position
     mov ax, ball_x
     add ax, ball_vx
-    mov ball_x, ax
-    
-    ; Collision Mur Gauche
     cmp ax, 0
-    jle bounce_x
-    
-    ; Collision Mur Droit
-    mov bx, SCREEN_WIDTH
-    sub bx, BALL_SIZE
-    cmp ax, bx
-    jge bounce_x
-    
-    jmp check_y
-    
-bounce_x:
-    neg ball_vx
-    
-    ; --- Deplacement Y ---
-check_y:
+    jl bounce_x_edges
+    mov bx, ax
+    add bx, BALL_SIZE
+    cmp bx, SCREEN_WIDTH
+    jg bounce_x_edges
+
     mov ax, ball_y
     add ax, ball_vy
-    mov ball_y, ax
-    
-    ; Collision Haut
     cmp ax, 0
-    jle bounce_y
-    
-    ; Collision Bas (pour l'instant rebondit aussi pour ne pas perdre direct)
-    mov bx, SCREEN_HEIGHT
-    sub bx, BALL_SIZE
-    cmp ax, bx
-    jge bounce_y
-    
-    ; --- Collision Raquette ---
-    ; Si Y >= PADDLE_Y - BALL_SIZE  ET  Y <= PADDLE_Y + PADDLE_HEIGHT
-    ; ET  X >= PADDLE_X  ET  X <= PADDLE_X + PADDLE_WIDTH
-    
-    ; Verif Y
+    jl bounce_y_edges
+    mov bx, ax
+    add bx, BALL_SIZE
+    cmp bx, SCREEN_HEIGHT
+    jg bounce_y_edges
+
+    popa
+    ret
+
+bounce_x_edges:
+    neg ball_vx
+    popa
+    ret
+
+bounce_y_edges:
+    neg ball_vy
+    popa
+    ret
+check_screen_edges ENDP
+
+check_paddle_collision PROC
+    pusha
+
+    ; Predict next position
+    mov ax, ball_x
+    add ax, ball_vx
+    mov bx, ax
     mov ax, ball_y
-    mov bx, PADDLE_Y
-    sub bx, BALL_SIZE
-    cmp ax, bx
-    jl end_move_ball
-    
-    mov bx, PADDLE_Y
-    add bx, PADDLE_HEIGHT
-    cmp ax, bx
-    jg end_move_ball
-    
-    ; Verif X
-    mov ax, ball_x
-    add ax, BALL_SIZE ; On teste le cote droit de la balle
+    add ax, ball_vy
+    mov cx, ax
+
+    ; Check vertical overlap
+    mov ax, cx
+    add ax, BALL_SIZE
+    cmp ax, PADDLE_Y
+    jl skip_paddle
+    mov ax, cx
+    cmp ax, PADDLE_Y + PADDLE_HEIGHT
+    jg skip_paddle
+
+    ; Check horizontal overlap
+    mov ax, bx
+    add ax, BALL_SIZE
     cmp ax, paddle_x
-    jl end_move_ball
-    
+    jl skip_paddle
+    mov ax, bx
+    cmp ax, paddle_x + PADDLE_WIDTH
+    jg skip_paddle
+
+    ; Collision → bounce vertically
+    neg ball_vy
+
+skip_paddle:
+    popa
+    ret
+check_paddle_collision ENDP
+
+check_brick_area_bounce PROC
+    pusha
+
+    ; Predict next rectangle
     mov ax, ball_x
-    mov bx, paddle_x
-    add bx, PADDLE_WIDTH
-    cmp ax, bx
-    jg end_move_ball
-    
-    ; Collision Raquette
-    ; On fait rebondir vers le haut seulement si on vient du haut
-    cmp ball_vy, 0
-    jg bounce_y ; Si vitesse positive (descend), on inverse
-    
-    jmp end_move_ball
+    add ax, ball_vx
+    mov bx, ax           ; next X
+    mov dx, bx
+    add dx, BALL_SIZE    ; right edge
+
+    mov ax, ball_y
+    add ax, ball_vy
+    mov cx, ax           ; next Y
+    mov si, cx
+    add si, BALL_SIZE    ; bottom edge
+
+    ; Check intersection with brick area 0-550 × 0-125
+    cmp bx, 550
+    ja skip_rect
+    cmp dx, 0
+    jb skip_rect
+    cmp cx, 125
+    ja skip_rect
+    cmp si, 0
+    jb skip_rect
+
+    ; Bounce depending on side
+    mov ax, bx
+    cmp ax, 0
+    jl bounce_x
+    mov ax, dx
+    cmp ax, 550
+    jg bounce_x
+
+    mov ax, cx
+    cmp ax, 0
+    jl bounce_y
+    mov ax, si
+    cmp ax, 125
+    jg bounce_y
+
+skip_rect:
+    popa
+    ret
+
+bounce_x:
+    neg ball_vx
+    popa
+    ret
 
 bounce_y:
     neg ball_vy
-    
-end_move_ball:
-    ; Dessiner nouvelle balle
+    popa
+    ret
+check_brick_area_bounce ENDP
+
+move_ball PROC
+    pusha
+
+    ; Erase old ball
+    call clear_ball
+
+    ; Check collisions
+    call check_screen_edges
+    call check_paddle_collision
+    call check_brick_area_bounce
+
+    ; Update position
+    mov ax, ball_x
+    add ax, ball_vx
+    mov ball_x, ax
+    mov ax, ball_y
+    add ax, ball_vy
+    mov ball_y, ax
+
+    ; Draw new ball
     call draw_ball
-    
+
     popa
     ret
 move_ball ENDP
