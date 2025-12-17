@@ -91,7 +91,7 @@ donnees segment public
     END_X       equ 160
     PIX         equ 8      ; taille d’un “pixel”
 
-    score_str       db "0000$",0
+    ;score_str       db "0000$"
     score           dw 0
     score_x         dw 500
     score_y         dw 30
@@ -809,62 +809,62 @@ clear_paddle PROC
     ret
 clear_paddle ENDP
 
-num_to_str PROC
-    pusha
-    mov ax, score          ; get score
-    mov si, offset score_str + 3 ; start filling from rightmost digit
-    mov cx, 4              ; 4-digit display
-
-convert_loop:
-    xor dx, dx
-    mov bx, 10
-    div bx                  ; AX / 10 -> AX=quotient, DX=remainder
-    add dl, '0'
-    mov [si], dl
-    dec si
-    loop convert_loop
+;num_to_str PROC
+;    pusha
+;    mov ax, score          ; get score
+;    mov si, offset score_str + 3 ; start filling from rightmost digit
+;    mov cx, 4              ; 4-digit display
+;
+;convert_loop:
+;    xor dx, dx
+;    mov bx, 10
+;    div bx                  ; AX / 10 -> AX=quotient, DX=remainder
+;    add dl, '0'
+;    mov [si], dl
+;    dec si
+;    loop convert_loop
 
     ; Fill remaining leading zeros
-    mov di, offset score_str
-    mov cx, 4
-fill_zeros:
-    cmp byte ptr [di], 0
-    jne skip_zero
-    mov byte ptr [di], '0'
-skip_zero:
-    inc di
-    loop fill_zeros
+;    mov di, offset score_str
+;    mov cx, 4
+;fill_zeros:
+;    cmp byte ptr [di], 0
+;    jne skip_zero
+;    mov byte ptr [di], '0'
+;skip_zero:
+;    inc di
+;    loop fill_zeros
 
-    popa
-    ret
-num_to_str ENDP
+;    popa
+;    ret
+;num_to_str ENDP
 
-draw_score PROC
-    pusha
+;draw_score PROC
+;    pusha
     ; Clear old score area
-    mov ax, score_x
-    mov Rx, ax
-    mov ax, score_y
-    mov Ry, ax
-    mov Rw, 60
-    mov Rh, 10
-    mov col, COLOR_BG
-    call fillRect
+;    mov ax, score_x
+;    mov Rx, ax
+;    mov ax, score_y
+;    mov Ry, ax
+;    mov Rw, 60
+;    mov Rh, 10
+;    mov col, COLOR_BG
+;    call fillRect
 
-    ; Convert number to string
-    call num_to_str
-    mov ah, 02h
-    mov bh, 0
-    mov dh, 30
-    mov dl, 50
-    int 10h
+    ; Convert number to stringscore
+;    call num_to_str
+;    mov ah, 02h
+;    mov bh, 0
+;    mov dh, 30
+;    mov dl, 50
+;    int 10h
     ; Display the score
-    mov dx, offset score_str
-    call CharLine
+;    mov dx, offset score_str
+;    call CharLine
 
-    popa
-    ret
-draw_score ENDP
+;    popa
+;    ret
+;draw_score ENDP
 
 
 
