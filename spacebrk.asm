@@ -350,7 +350,9 @@ check_paddle_collision PROC
     cmp ax, paddle_x
     jl skip_paddle
     mov ax, bx
-    cmp ax, paddle_x + PADDLE_WIDTH
+    mov dx, paddle_x
+    add dx, PADDLE_WIDTH
+    cmp ax, dx
     jg skip_paddle
 
     ; Collision → bounce vertically
