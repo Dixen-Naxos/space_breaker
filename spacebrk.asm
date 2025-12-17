@@ -69,6 +69,8 @@ donnees segment public
     ; Variable locale pour calculs
     loc_x           dw 0
     loc_y           dw 0
+    loc_w           dw 0
+    loc_h           dw 0
     loc_col         db 0
     
     msg_quit        db "ESC: Quitter$" ; Termine par $ pour DOS si besoin, mais on utilise libgfx
@@ -226,61 +228,136 @@ skip_paddle:
     ret
 check_paddle_collision ENDP
 
-check_brick_area_bounce PROC
+; =============================================================
+; Check collision with a single brick (specific coordinates)
+; Inputs: loc_x = brick X, loc_y = brick Y
+;         loc_w = brick width, loc_h = brick height
+; =============================================================
+check_brick_bounce PROC
     pusha
 
-    ; Predict next rectangle
+    ; Ball predicted rectangle
     mov ax, ball_x
     add ax, ball_vx
-    mov bx, ax           ; next X
-    mov dx, bx
-    add dx, BALL_SIZE    ; right edge
+    mov bx, ax          ; ball left
+    mov ax, bx
+    add ax, BALL_SIZE
+    mov dx, ax          ; ball right
 
     mov ax, ball_y
     add ax, ball_vy
-    mov cx, ax           ; next Y
-    mov si, cx
-    add si, BALL_SIZE    ; bottom edge
-
-    ; Check intersection with brick area 0-550 × 0-125
-    cmp bx, 550
-    ja skip_rect
-    cmp dx, 0
-    jb skip_rect
-    cmp cx, 125
-    ja skip_rect
-    cmp si, 0
-    jb skip_rect
-
-    ; Bounce depending on side
-    mov ax, bx
-    cmp ax, 0
-    jl bounce_x
-    mov ax, dx
-    cmp ax, 550
-    jg bounce_x
-
-    mov ax, cx
-    cmp ax, 0
-    jl bounce_y
+    mov si, ax          ; ball top
     mov ax, si
-    cmp ax, 125
-    jg bounce_y
+    add ax, BALL_SIZE
+    mov di, ax          ; ball bottom
 
-skip_rect:
-    popa
-    ret
+    ; Brick rectangle
+    mov ax, loc_x
+    mov cx, ax          ; brick left
+    mov ax, loc_w
+    add cx, ax
+    mov ax, loc_y
+    mov bx, ax          ; brick top
+    mov ax, loc_h
+    add bx, ax
+    mov bp, bx          ; brick bottom
 
-bounce_x:
-    neg ball_vx
-    popa
-    ret
+    ; ---------------------------
+    ; Check horizontal overlap
+    ; ---------------------------
+    ; Ball right < brick left?
+    cmp dx, loc_x       ; dx = ball right
+    jle cb_skip
 
-bounce_y:
+    ; Ball left > brick right?
+    mov ax, loc_x       ; load brick left
+    add ax, loc_w       ; ax = brick right
+    mov bx, ball_x      ; bx = ball left
+    cmp bx, ax
+    jge cb_skip
+
+    ; ---------------------------
+    ; Check vertical overlap
+    ; ---------------------------
+    ; Ball bottom < brick top?
+    cmp si, loc_y       ; si = ball bottom
+    jle cb_skip
+
+    ; Ball top > brick bottom?
+    mov ax, loc_y
+    add ax, loc_h       ; ax = brick bottom
+    mov bx, ball_y      ; bx = ball top
+    cmp bx, ax
+    jge cb_skip
+
+    ; Collision detected → simple vertical bounce
     neg ball_vy
+    ; Optionally destroy brick
+    ; mov byte ptr [brick_color_address], 0
+
+cb_skip:
     popa
     ret
-check_brick_area_bounce ENDP
+check_brick_bounce ENDP
+
+
+; =============================================================
+; Loop through all bricks and check collision
+; =============================================================
+check_all_bricks PROC
+    pusha
+
+    xor di, di          ; row
+check_rows:
+    cmp di, BRICK_ROWS
+    jge end_check_bricks
+
+    xor si, si          ; column
+check_cols:
+    cmp si, BRICK_COLS
+    jge next_row_cb
+
+    ; Index = row * BRICK_COLS + col
+    mov ax, di
+    mov cx, BRICK_COLS
+    mul cx
+    add ax, si
+    mov bx, offset brick_map
+    add bx, ax
+    mov al, [bx]        ; brick color
+    cmp al, 0
+    je next_col_cb      ; empty
+
+    ; Calculate brick position
+    mov ax, BRICK_WIDTH
+    add ax, BRICK_PADDING
+    mul si
+    mov loc_x, ax
+
+    mov ax, BRICK_HEIGHT
+    add ax, BRICK_PADDING
+    mul di
+    mov loc_y, ax
+
+    mov loc_w, BRICK_WIDTH
+    mov loc_h, BRICK_HEIGHT
+
+    ; Call collision check for this brick
+    call check_brick_bounce
+
+next_col_cb:
+    inc si
+    jmp check_cols
+
+next_row_cb:
+    inc di
+    jmp check_rows
+
+end_check_bricks:
+    popa
+    ret
+check_all_bricks ENDP
+
 
 move_ball PROC
     pusha
@@ -291,7 +368,7 @@ move_ball PROC
     ; Check collisions
     call check_screen_edges
     call check_paddle_collision
-    call check_brick_area_bounce
+    call check_all_bricks
 
     ; Update position
     mov ax, ball_x
