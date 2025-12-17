@@ -1,8 +1,8 @@
 
 
  Start  Stop   Length Name                   Class
- 00000H 005B5H 005B6H CODE                   
- 005C0H 007BFH 00200H PILE                   
- 007C0H 0083EH 0007FH DONNEES                
+ 00000H 005F5H 005F6H CODE                   
+ 00600H 007FFH 00200H PILE                   
+ 00800H 0087EH 0007FH DONNEES                
 
 Program entry point at 0000:0000

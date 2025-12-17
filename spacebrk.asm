@@ -72,6 +72,8 @@ donnees segment public
     loc_w           dw 0
     loc_h           dw 0
     loc_col         db 0
+    si_index        dw 0
+    di_index        dw 0
     
     msg_quit        db "ESC: Quitter$" ; Termine par $ pour DOS si besoin, mais on utilise libgfx
 
@@ -295,6 +297,36 @@ check_brick_bounce PROC
     ; Optionally destroy brick
     ; mov byte ptr [brick_color_address], 0
 
+    ; ---------------------------
+    ; Remove brick from map
+    ; ---------------------------
+    mov ax, di_index    ; row index in DI
+    mov cx, BRICK_COLS
+    mul cx              ; AX = row * BRICK_COLS
+    add ax, si_index    ; add column index
+    mov bx, offset brick_map
+    add bx, ax
+    mov byte ptr [bx], 0  ; set brick to 0 (destroy)
+
+    ; ---------------------------
+    ; Clear brick from screen
+    ; ---------------------------
+    ; Clear the brick from the screen
+    mov ax, loc_x
+    mov Rx, ax
+
+    mov ax, loc_y
+    mov Ry, ax
+
+    mov ax, loc_w
+    mov Rw, ax
+
+    mov ax, loc_h
+    mov Rh, ax
+
+    mov col, COLOR_BG
+    call fillRect
+
 cb_skip:
     popa
     ret
@@ -341,6 +373,8 @@ check_cols:
 
     mov loc_w, BRICK_WIDTH
     mov loc_h, BRICK_HEIGHT
+    mov di_index, di   ; save row
+    mov si_index, si   ; save column
 
     ; Call collision check for this brick
     call check_brick_bounce
