@@ -380,7 +380,7 @@ game_over_red PROC
     mov Ry, END_Y
     call draw_D
 
-    ; 🔥 CRITIQUE : vider l’état clavier AVANT la boucle
+    ; CRITIQUE : vider l’état clavier AVANT la boucle
     mov userinput, 0
 
 wait_exit:
