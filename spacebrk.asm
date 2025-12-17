@@ -74,6 +74,24 @@ donnees segment public
     loc_col         db 0
     si_index        dw 0
     di_index        dw 0
+
+        ; ======== VIES / HUD ========
+    lives           db 3
+
+    HEART_W         equ 12
+    HEART_H         equ 10
+    HEART_Y         equ 140
+    HEART_X_START   equ 10
+    HEART_SPACING   equ 18
+    HEART_COLOR     equ 12     ; Rouge
+
+    END_COLOR   equ 12     ; Rouge clair
+    END_BG      equ 0      ; Noir
+    END_Y       equ 200
+    END_X       equ 160
+    PIX         equ 8      ; taille d’un “pixel”
+
+
     
     msg_quit        db "ESC: Quitter$" ; Termine par $ pour DOS si besoin, mais on utilise libgfx
 
@@ -96,6 +114,7 @@ MAIN PROC
     call render_bricks
     call draw_paddle
     call draw_ball
+    call draw_lives
 
 game_loop:
     mov tempo, 10 ; Vitesse du jeu
@@ -105,7 +124,13 @@ game_loop:
     call PeekKey
     
     cmp userinput, 27          ; Echap
-    je exit_game
+    jne no_esc
+
+    mov userinput, 0
+    jmp exit_game
+
+    no_esc:
+
 
     cmp userinput, 'q'         ; 'q' (gauche)
     je move_left
@@ -160,38 +185,139 @@ MAIN ENDP
 check_screen_edges PROC
     pusha
 
-    ; Predict next position
+    ; ----- Mur gauche / droit -----
     mov ax, ball_x
     add ax, ball_vx
     cmp ax, 0
-    jl bounce_x_edges
+    jl bounce_x
     mov bx, ax
     add bx, BALL_SIZE
     cmp bx, SCREEN_WIDTH
-    jg bounce_x_edges
+    jg bounce_x
 
+    ; ----- Mur haut -----
     mov ax, ball_y
     add ax, ball_vy
     cmp ax, 0
-    jl bounce_y_edges
+    jl bounce_y
+
+    ; ----- Bas de l'écran = PERTE DE VIE -----
     mov bx, ax
     add bx, BALL_SIZE
     cmp bx, SCREEN_HEIGHT
-    jg bounce_y_edges
+    jle end_edges
 
+    ; === Balle perdue ===
+    dec lives
+    call draw_lives
+
+    cmp lives, 0
+    jg reset_ball
+    popa
+    jmp game_over_red
+
+reset_ball:
+    mov ball_x, 320
+    mov ball_y, 400
+    mov ball_vx, 4
+    mov ball_vy, -4
     popa
     ret
 
-bounce_x_edges:
+bounce_x:
     neg ball_vx
     popa
     ret
 
-bounce_y_edges:
+bounce_y:
     neg ball_vy
     popa
     ret
+
+end_edges:
+    popa
+    ret
 check_screen_edges ENDP
+
+; RX = x de base
+; RY = y de base
+draw_one_heart PROC
+    pusha
+    mov col, HEART_COLOR
+
+    ; haut gauche
+    mov ax, Rx
+    mov Ry, HEART_Y
+    mov Rw, 5
+    mov Rh, 5
+    call fillRect
+
+    ; haut droite
+    mov ax, Rx
+    add ax, 7
+    mov Rx, ax
+    call fillRect
+
+    ; milieu
+    mov ax, Rx
+    sub ax, 7
+    mov Rx, ax
+    mov ax, HEART_Y
+    add ax, 5
+    mov Ry, ax
+    mov Rw, 12
+    mov Rh, 5
+    call fillRect
+
+    ; bas
+    mov ax, HEART_Y
+    add ax, 10
+    mov Ry, ax
+    mov Rw, 7
+    mov Rh, 5
+    call fillRect
+
+    popa
+    ret
+draw_one_heart ENDP
+
+
+draw_lives PROC
+    pusha
+
+    ; Nettoyage HUD
+    mov Rx, 0
+    mov Ry, HEART_Y
+    mov Rw, 200
+    mov Rh, 30
+    mov col, COLOR_BG
+    call fillRect
+
+    xor si, si
+    xor cx, cx
+    mov cl, lives
+
+draw_heart_loop:
+    cmp si, cx
+    jge end_draw_lives
+
+    mov ax, si
+    mov bx, HEART_SPACING
+    mul bx
+    add ax, HEART_X_START
+    mov Rx, ax
+
+    call draw_one_heart
+
+    inc si
+    jmp draw_heart_loop
+
+end_draw_lives:
+    popa
+    ret
+draw_lives ENDP
+
+
 
 check_paddle_collision PROC
     pusha
@@ -229,6 +355,47 @@ skip_paddle:
     popa
     ret
 check_paddle_collision ENDP
+
+game_over_red PROC
+    pusha
+    call ClearScreen
+
+    ; --- Dessin END ---
+    mov Rx, END_X
+    mov Ry, END_Y
+    call draw_E
+
+    mov Rx, END_X
+    add Rx, PIX*5
+    mov Ry, END_Y
+    call draw_N
+
+    mov Rx, END_X
+    add Rx, PIX*11
+    mov Ry, END_Y
+    call draw_D
+
+    ; 🔥 CRITIQUE : vider l’état clavier AVANT la boucle
+    mov userinput, 0
+
+wait_exit:
+    call PeekKey
+    cmp userinput, 27
+    jne wait_exit
+
+    ; consommer ESC
+    mov userinput, 0
+
+    popa
+    call VideoCMD
+    mov ah, 4Ch
+    xor al, al
+    int 21h
+game_over_red ENDP
+
+
+
+
 
 ; =============================================================
 ; Check collision with a single brick (specific coordinates)
@@ -655,6 +822,113 @@ draw_ui PROC
     popa
     ret
 draw_ui ENDP
+
+draw_E PROC
+    pusha
+    mov col, END_COLOR
+
+    ; Barre verticale
+    mov Rw, PIX
+    mov Rh, PIX*5
+    call fillRect
+
+    ; Haut
+    mov Rw, PIX*3
+    mov Rh, PIX
+    call fillRect
+
+    ; Milieu
+    mov Ry, END_Y
+    add Ry, PIX*2
+    call fillRect
+
+    ; Bas
+    mov Ry, END_Y
+    add Ry, PIX*4
+    call fillRect
+
+    popa
+    ret
+draw_E ENDP
+
+draw_N PROC
+    pusha
+    mov col, END_COLOR
+
+    ; --- Barre gauche ---
+    mov Rx, END_X
+    mov Ry, END_Y
+    mov Rw, PIX
+    mov Rh, PIX*5
+    call fillRect
+
+    ; --- Diagonale ---
+    mov cx, 5
+diag_loop_n:
+    ; Rx = END_X + cx * PIX
+    mov ax, cx
+    mov bx, PIX
+    mul bx
+    add ax, END_X
+    mov Rx, ax
+
+    ; Ry = END_Y + cx * PIX
+    mov ax, cx
+    mov bx, PIX
+    mul bx
+    add ax, END_Y
+    mov Ry, ax
+
+    mov Rw, PIX
+    mov Rh, PIX
+    call fillRect
+
+    loop diag_loop_n
+
+    ; --- Barre droite ---
+    mov Rx, END_X
+    add Rx, PIX*4
+    mov Ry, END_Y
+    mov Rw, PIX
+    mov Rh, PIX*5
+    call fillRect
+
+    popa
+    ret
+draw_N ENDP
+
+
+draw_D PROC
+    pusha
+    mov col, END_COLOR
+
+    ; Gauche
+    mov Rw, PIX
+    mov Rh, PIX*5
+    call fillRect
+
+    ; Haut
+    mov Rw, PIX*3
+    mov Rh, PIX
+    call fillRect
+
+    ; Bas
+    mov Ry, END_Y
+    add Ry, PIX*4
+    call fillRect
+
+    ; Droite
+    mov Rx, END_X
+    add Rx, PIX*3
+    mov Ry, END_Y
+    mov Rw, PIX
+    mov Rh, PIX*5
+    call fillRect
+
+    popa
+    ret
+draw_D ENDP
+
 
 code ends
 END MAIN
